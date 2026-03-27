@@ -2,9 +2,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const HUBSPOT_API_KEY = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
-const ALLOWED_ORIGIN  = process.env.ALLOWED_ORIGIN ?? "*";
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? "*";
 
-// Prospect List + Churned Customers List + Test List
 const ELIGIBLE_LIST_IDS = ["10377", "10380", "10503"];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,7 +12,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method not allowed" });
 
   const { utk } = req.query;
 
@@ -22,7 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!HUBSPOT_API_KEY) {
-    return res.status(500).json({ error: "Missing HubSpot token", isEligible: false });
+    return res
+      .status(500)
+      .json({ error: "Missing HubSpot token", isEligible: false });
   }
 
   try {
@@ -34,21 +36,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           Authorization: `Bearer ${HUBSPOT_API_KEY}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     if (utkRes.status === 404) {
-      return res.status(200).json({ isEligible: true, reason: "unknown_contact" });
+      return res
+        .status(200)
+        .json({ isEligible: true, reason: "unknown_contact" });
     }
 
     if (!utkRes.ok) throw new Error(`UTK lookup failed with ${utkRes.status}`);
 
-    const contact   = await utkRes.json();
+    const contact = await utkRes.json();
     const contactId = String(contact["canonical-vid"] || contact.vid);
-    console.log("[check-list-membership] contactId:", contactId);
 
-    // 2. Use v3 Lists API to get all list memberships for this contact
-    //    This returns both static AND dynamic list memberships
     const v3Res = await fetch(
       `https://api.hubapi.com/crm/v3/lists/records/CONTACT/${contactId}/memberships`,
       {
@@ -56,32 +57,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           Authorization: `Bearer ${HUBSPOT_API_KEY}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
-    console.log("[check-list-membership] v3 status:", v3Res.status);
-
-    if (!v3Res.ok) throw new Error(`v3 list lookup failed with ${v3Res.status}`);
+    if (!v3Res.ok)
+      throw new Error(`v3 list lookup failed with ${v3Res.status}`);
 
     const v3Data = await v3Res.json();
-    console.log("[check-list-membership] v3 response:", JSON.stringify(v3Data));
 
-    const memberListIds: string[] = (v3Data?.results ?? []).map(
-      (l: any) => String(l.listId ?? l.id ?? "")
+    const memberListIds: string[] = (v3Data?.results ?? []).map((l: any) =>
+      String(l.listId ?? l.id ?? ""),
     );
-    console.log("[check-list-membership] dynamic list IDs:", memberListIds);
-    console.log("[check-list-membership] checking against:", ELIGIBLE_LIST_IDS);
 
-    const isEligible = ELIGIBLE_LIST_IDS.some(id => memberListIds.includes(id));
-    console.log("[check-list-membership] isEligible:", isEligible);
-
+    const isEligible = ELIGIBLE_LIST_IDS.some((id) =>
+      memberListIds.includes(id),
+    );
+    
     return res.status(200).json({
       isEligible,
       reason: isEligible ? "list_member" : "known_contact_not_on_list",
     });
-
   } catch (err) {
     console.error("[check-list-membership]", err);
-    return res.status(200).json({ isEligible: true, reason: "error_fail_open" });
+    return res
+      .status(200)
+      .json({ isEligible: true, reason: "error_fail_open" });
   }
 }
