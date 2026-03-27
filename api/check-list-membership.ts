@@ -4,8 +4,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const HUBSPOT_API_KEY = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? "*";
 
-// Prospect List + Churned Customers List
-const ELIGIBLE_LIST_IDS = ["10377", "10380", "10503"];
+const ELIGIBLE_LIST_IDS = ["10377", "10380"];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
@@ -29,7 +28,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // 1. Look up contact by UTK
     const utkRes = await fetch(
       `https://api.hubapi.com/contacts/v1/contact/utk/${utk}/profile`,
       {
@@ -40,7 +38,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     );
 
-    // Contact not found — unknown visitor, show incentive
     if (utkRes.status === 404) {
       return res
         .status(200)
@@ -68,7 +65,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!memberRes.ok) return false;
 
-        // Use the dedicated member check endpoint
         const checkRes = await fetch(
           `https://api.hubapi.com/contacts/v1/contact/vid/${contactId}/lists-memberships`,
           {
@@ -81,7 +77,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!checkRes.ok) return false;
         const data = await checkRes.json();
 
-        // data is an array of list membership objects
         return (
           Array.isArray(data) &&
           data.some(
@@ -99,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err) {
     console.error("[check-list-membership]", err);
-    // Fail open — show incentive if check fails
+
     return res
       .status(200)
       .json({ isEligible: true, reason: "error_fail_open" });
