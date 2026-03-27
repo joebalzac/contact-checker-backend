@@ -2,10 +2,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const HUBSPOT_API_KEY = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
-const ALLOWED_ORIGIN  = process.env.ALLOWED_ORIGIN ?? "*";
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? "*";
 
 // Prospect List + Churned Customers List
-const ELIGIBLE_LIST_IDS = ["10377", "10380"];
+const ELIGIBLE_LIST_IDS = ["10377", "10380", "10503"];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
@@ -13,7 +13,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method not allowed" });
 
   const { utk } = req.query;
 
@@ -22,7 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!HUBSPOT_API_KEY) {
-    return res.status(500).json({ error: "Missing HubSpot token", isEligible: false });
+    return res
+      .status(500)
+      .json({ error: "Missing HubSpot token", isEligible: false });
   }
 
   try {
@@ -34,17 +37,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           Authorization: `Bearer ${HUBSPOT_API_KEY}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     // Contact not found — unknown visitor, show incentive
     if (utkRes.status === 404) {
-      return res.status(200).json({ isEligible: true, reason: "unknown_contact" });
+      return res
+        .status(200)
+        .json({ isEligible: true, reason: "unknown_contact" });
     }
 
     if (!utkRes.ok) throw new Error(`UTK lookup failed with ${utkRes.status}`);
 
-    const contact   = await utkRes.json();
+    const contact = await utkRes.json();
     const contactId = String(contact["canonical-vid"] || contact.vid);
     console.log("[check-list-membership] contactId:", contactId);
 
@@ -58,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             headers: {
               Authorization: `Bearer ${HUBSPOT_API_KEY}`,
             },
-          }
+          },
         );
 
         if (!memberRes.ok) return false;
@@ -70,17 +75,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             headers: {
               Authorization: `Bearer ${HUBSPOT_API_KEY}`,
             },
-          }
+          },
         );
 
         if (!checkRes.ok) return false;
         const data = await checkRes.json();
 
         // data is an array of list membership objects
-        return Array.isArray(data) && data.some(
-          (membership: any) => String(membership["list-id"]) === listId
+        return (
+          Array.isArray(data) &&
+          data.some(
+            (membership: any) => String(membership["list-id"]) === listId,
+          )
         );
-      })
+      }),
     );
 
     const isEligible = membershipChecks.some(Boolean);
@@ -89,10 +97,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       isEligible,
       reason: isEligible ? "list_member" : "known_contact_not_on_list",
     });
-
   } catch (err) {
     console.error("[check-list-membership]", err);
     // Fail open — show incentive if check fails
-    return res.status(200).json({ isEligible: true, reason: "error_fail_open" });
+    return res
+      .status(200)
+      .json({ isEligible: true, reason: "error_fail_open" });
   }
 }
