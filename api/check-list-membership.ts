@@ -5,7 +5,7 @@ const HUBSPOT_API_KEY = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? "*";
 
 // Prospect List + Churned Customers List + Test List
-const ELIGIBLE_LIST_IDS = ["10377", "10380", "10503"];
+const ELIGIBLE_LIST_IDS = ["10377", "10380"];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
@@ -50,10 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const contact = await utkRes.json();
     const contactId = String(contact["canonical-vid"] || contact.vid);
-    console.log("[check-list-membership] contactId:", contactId);
 
-    // 2. Use v3 Lists API to get all list memberships for this contact
-    //    This returns both static AND dynamic list memberships
     const v3Res = await fetch(
       `https://api.hubapi.com/crm/v3/lists/records/CONTACT/${contactId}/memberships`,
       {
@@ -64,7 +61,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     );
 
-    console.log("[check-list-membership] v3 status:", v3Res.status);
 
     if (!v3Res.ok)
       throw new Error(`v3 list lookup failed with ${v3Res.status}`);
@@ -75,17 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const memberListIds: string[] = (v3Data?.results ?? []).map((l: any) =>
       String(l.listId ?? l.id ?? ""),
     );
-    console.log("[check-list-membership] dynamic list IDs:", memberListIds);
-    console.log("[check-list-membership] checking against:", ELIGIBLE_LIST_IDS);
+
 
     const isEligible = ELIGIBLE_LIST_IDS.some((id) =>
       memberListIds.includes(id),
     );
-    console.log("[check-list-membership] isEligible:", isEligible);
 
-    const contactIdTest = "180895783295";
-    console.log("[check-list-membership] contactId:", contactIdTest);
-    // TEMP: force test with known contact ID
+
 
     return res.status(200).json({
       isEligible,
