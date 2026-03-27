@@ -83,9 +83,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     console.log("[check-list-membership] isEligible:", isEligible);
 
-    console.log("[check-list-membership] contactId:", contactId);
+    const contactIdTest = "180895783295";
+    console.log("[check-list-membership] contactId:", contactIdTest);
     // TEMP: force test with known contact ID
-    // const contactId = "180895783295";
 
     return res.status(200).json({
       isEligible,
