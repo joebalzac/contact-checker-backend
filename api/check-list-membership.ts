@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // 1. Look up contact by UTK — response includes list-memberships
+    // 1. Look up contact by UTK to get contact ID
     const utkRes = await fetch(
       `https://api.hubapi.com/contacts/v1/contact/utk/${utk}/profile`,
       {
@@ -40,7 +40,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     );
 
-    // Contact not found — unknown visitor, show incentive
     if (utkRes.status === 404) {
       return res
         .status(200)
@@ -53,20 +52,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const contactId = String(contact["canonical-vid"] || contact.vid);
     console.log("[check-list-membership] contactId:", contactId);
 
-    // 2. Extract list memberships from the profile response
-    const listMemberships: any[] = contact["list-memberships"] ?? [];
-    console.log(
-      "[check-list-membership] list-memberships count:",
-      listMemberships.length,
+    // 2. Use v3 Lists API to get all list memberships for this contact
+    //    This returns both static AND dynamic list memberships
+    const v3Res = await fetch(
+      `https://api.hubapi.com/crm/v3/lists/records/CONTACT/${contactId}/memberships`,
+      {
+        headers: {
+          Authorization: `Bearer ${HUBSPOT_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      },
     );
 
-    const memberListIds = listMemberships.map((m: any) =>
-      String(m["static-list-id"] ?? m["list-id"] ?? ""),
+    console.log("[check-list-membership] v3 status:", v3Res.status);
+
+    if (!v3Res.ok)
+      throw new Error(`v3 list lookup failed with ${v3Res.status}`);
+
+    const v3Data = await v3Res.json();
+    console.log("[check-list-membership] v3 response:", JSON.stringify(v3Data));
+
+    const memberListIds: string[] = (v3Data?.lists ?? []).map((l: any) =>
+      String(l.listId ?? l.id ?? ""),
     );
-    console.log("[check-list-membership] member list IDs:", memberListIds);
+    console.log("[check-list-membership] dynamic list IDs:", memberListIds);
     console.log("[check-list-membership] checking against:", ELIGIBLE_LIST_IDS);
 
-    // 3. Check if any eligible list ID matches
     const isEligible = ELIGIBLE_LIST_IDS.some((id) =>
       memberListIds.includes(id),
     );
@@ -78,7 +89,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err) {
     console.error("[check-list-membership]", err);
-    // Fail open — show incentive if check fails
     return res
       .status(200)
       .json({ isEligible: true, reason: "error_fail_open" });
