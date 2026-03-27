@@ -52,8 +52,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const contactId = String(contact["canonical-vid"] || contact.vid);
     console.log("[check-list-membership] contactId:", contactId);
 
-    // 2. Use v3 Lists API to get all list memberships for this contact
-    //    This returns both static AND dynamic list memberships
     const v3Res = await fetch(
       `https://api.hubapi.com/crm/v3/lists/records/CONTACT/${contactId}/memberships`,
       {
